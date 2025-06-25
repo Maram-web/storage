@@ -24,9 +24,10 @@ public class FileController {
     public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file,
                                          @RequestParam("type") String type,
                                          Authentication auth) throws IOException {
-        System.out.println("🔥 Upload endpoint hit");
+        System.out.println("🔥 Upload endpoint hit: " + file.getOriginalFilename() + " by " + auth.getName());
         storageService.uploadFile(file, auth.getName(), type);
         return ResponseEntity.ok("Uploaded ✅");
+
     }
 
     @GetMapping
@@ -50,4 +51,10 @@ public class FileController {
         storageService.delete(auth.getName(), filename);
         return ResponseEntity.ok("Deleted ✅");
     }
+
+    @GetMapping("/test")
+    public ResponseEntity<String> test() {
+        return ResponseEntity.ok("✅ API is reachable");
+    }
+
 }

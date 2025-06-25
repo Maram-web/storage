@@ -3,6 +3,7 @@ package tn.esprit.storageservice.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,6 +17,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -29,12 +31,12 @@ public class CephTestController {
     private String bucket;
 
     @PostMapping("/upload")
-    public String uploadFile(@RequestParam("file") MultipartFile file) throws IOException {
+    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) throws IOException {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         long fileSize = file.getSize();
 
         if (!quotaService.canUpload(username, fileSize)) {
-            return quotaService.suggestUpgrade();
+            return ResponseEntity.status(403).body(Map.of("message", quotaService.suggestUpgrade()));
         }
 
         PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -46,8 +48,9 @@ public class CephTestController {
         s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
         quotaService.updateUsage(username, fileSize);
 
-        return "✅ File uploaded to Ceph S3!";
+        return ResponseEntity.ok(Map.of("message", "✅ File uploaded to Ceph S3!"));
     }
+
 
 
     @GetMapping("/list")
