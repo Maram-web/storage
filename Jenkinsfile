@@ -5,6 +5,7 @@ pipeline {
         IMAGE_NAME = "marammanai/storage-service:latest"
         K8S_MASTER = "ceph1@192.168.13.11"
         DEPLOY_YAML = "k8s-storage-deployment.yaml"
+        FORCE_BUILD = "true"  // Force la construction même au premier run
     }
 
     stages {
@@ -17,16 +18,14 @@ pipeline {
         stage('Analyse des changements') {
             steps {
                 script {
-                    def diffResult = sh(script: "git rev-parse HEAD~1 || echo 'first-build'", returnStdout: true).trim()
+                    def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
+                    echo "📂 Fichiers modifiés:\n${changes}"
 
-                    if (diffResult == 'first-build') {
-                        echo "🟡 Premier build : on force la construction de l'image"
-                        env.NEED_BUILD_DOCKER = "true"
-                    } else {
-                        def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                        echo "📂 Fichiers modifiés:\n${changes}"
-                        env.NEED_BUILD_DOCKER = (changes.contains("Dockerfile") || changes.contains("src/")) ? "true" : "false"
-                    }
+                    env.NEED_BUILD_DOCKER = (
+                        env.FORCE_BUILD == "true" ||
+                        changes.contains("Dockerfile") ||
+                        changes.contains("src/")
+                    ) ? "true" : "false"
                 }
             }
         }
