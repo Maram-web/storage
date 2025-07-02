@@ -1,9 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storage
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: storage-service
-  labels:
-    app: storage-service
+  namespace: storage
 spec:
   replicas: 1
   selector:
@@ -24,6 +28,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: storage-service
+  namespace: storage
 spec:
   type: ClusterIP
   selector:
