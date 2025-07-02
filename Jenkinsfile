@@ -17,10 +17,16 @@ pipeline {
         stage('Analyse des changements') {
             steps {
                 script {
-                    def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                    echo "📂 Fichiers modifiés:\n${changes}"
+                    def diffResult = sh(script: "git rev-parse HEAD~1 || echo 'first-build'", returnStdout: true).trim()
 
-                    env.NEED_BUILD_DOCKER = (changes.contains("Dockerfile") || changes.contains("src/")) ? "true" : "false"
+                    if (diffResult == 'first-build') {
+                        echo "🟡 Premier build : on force la construction de l'image"
+                        env.NEED_BUILD_DOCKER = "true"
+                    } else {
+                        def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
+                        echo "📂 Fichiers modifiés:\n${changes}"
+                        env.NEED_BUILD_DOCKER = (changes.contains("Dockerfile") || changes.contains("src/")) ? "true" : "false"
+                    }
                 }
             }
         }
@@ -65,7 +71,11 @@ pipeline {
     }
 
     post {
-        success { echo "✅ storage-service deployed!" }
-        failure { echo "❌ storage-service failed!" }
+        success {
+            echo "✅ storage-service deployed!"
+        }
+        failure {
+            echo "❌ storage-service failed!"
+        }
     }
 }
