@@ -21,8 +21,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/s3/**").authenticated()
+                        .requestMatchers("/api/storage/s3/**").hasRole("USER")
                         .requestMatchers("/files/**").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class) // ✅ AJOUT ICI
