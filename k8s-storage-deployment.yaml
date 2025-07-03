@@ -20,7 +20,8 @@ spec:
     spec:
       containers:
         - name: storage-service
-          image: marammanai/storage-service:latest
+          image: marammanai/storage-service:__IMAGE_TAG__
+          imagePullPolicy: Always
           ports:
             - containerPort: 8090
 ---

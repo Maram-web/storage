@@ -2,10 +2,8 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "marammanai/storage-service:latest"
         K8S_MASTER = "ceph1@192.168.13.11"
         DEPLOY_YAML = "k8s-storage-deployment.yaml"
-        FORCE_BUILD = "true"  // Force la construction même au premier run
     }
 
     stages {
@@ -15,35 +13,19 @@ pipeline {
             }
         }
 
-        stage('Analyse des changements') {
+        stage('Set Dynamic Image Tag') {
             steps {
                 script {
-                    def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                    echo "📂 Fichiers modifiés:\n${changes}"
-
-                    env.NEED_BUILD_DOCKER = (
-                        env.FORCE_BUILD == "true" ||
-                        changes.contains("Dockerfile") ||
-                        changes.contains("src/")
-                    ) ? "true" : "false"
+                    def tag = "v${new Date().format('yyyyMMdd-HHmmss')}"
+                    env.IMAGE_NAME = "marammanai/storage-service:${tag}"
+                    env.IMAGE_TAG = tag
                 }
             }
         }
 
-        stage('Docker Build') {
-            when {
-                expression { env.NEED_BUILD_DOCKER == "true" }
-            }
+        stage('Docker Build & Push') {
             steps {
-                sh 'docker build -t $IMAGE_NAME .'
-            }
-        }
-
-        stage('Docker Push') {
-            when {
-                expression { env.NEED_BUILD_DOCKER == "true" }
-            }
-            steps {
+                sh "docker build -t $IMAGE_NAME ."
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
@@ -53,30 +35,31 @@ pipeline {
             }
         }
 
-        stage('Copy YAML') {
+        stage('Inject Tag into YAML') {
             steps {
-                sh '''
-                    ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
-                    scp $DEPLOY_YAML $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
-                '''
+                sh """
+                sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-storage-template.yaml > $DEPLOY_YAML
+                """
             }
         }
 
         stage('Deploy') {
             steps {
-                sh 'ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML'
+                sh '''
+                    ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
+                    scp $DEPLOY_YAML $K8S_MASTER:/home/ceph1/
+                    ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ storage-service deployed!"
+            echo "✅ storage-service deployed with tag: ${env.IMAGE_TAG}"
         }
         failure {
-            echo "❌ storage-service failed!"
+            echo "❌ storage-service deployment failed"
         }
     }
 }
-
-
