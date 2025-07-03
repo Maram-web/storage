@@ -38,7 +38,7 @@ pipeline {
         stage('Inject Tag into YAML') {
             steps {
                 sh """
-                sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-storage-template.yaml > $DEPLOY_YAML
+                    sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-storage-template.yaml > $DEPLOY_YAML
                 """
             }
         }
