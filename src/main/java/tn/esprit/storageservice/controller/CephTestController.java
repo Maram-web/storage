@@ -45,6 +45,7 @@ public class CephTestController {
                     .key(file.getOriginalFilename())
                     .contentType(file.getContentType())
                     .build();
+            System.out.println("⏫ Uploading to bucket: " + bucket + ", file: " + file.getOriginalFilename());
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
             quotaService.updateUsage(username, fileSize);
