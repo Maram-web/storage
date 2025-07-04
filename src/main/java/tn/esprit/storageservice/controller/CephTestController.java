@@ -31,25 +31,31 @@ public class CephTestController {
     private String bucket;
 
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) throws IOException {
+    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         long fileSize = file.getSize();
 
-        if (!quotaService.canUpload(username, fileSize)) {
-            return ResponseEntity.status(403).body(Map.of("message", quotaService.suggestUpgrade()));
+        try {
+            if (!quotaService.canUpload(username, fileSize)) {
+                return ResponseEntity.status(403).body(Map.of("message", quotaService.suggestUpgrade()));
+            }
+
+            PutObjectRequest putRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(file.getOriginalFilename())
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
+            quotaService.updateUsage(username, fileSize);
+
+            return ResponseEntity.ok(Map.of("message", "✅ File uploaded to Ceph S3!"));
+        } catch (Exception e) {
+            e.printStackTrace(); // ou log.error(...)
+            return ResponseEntity.status(500).body(Map.of("error", "Upload failed: " + e.getMessage()));
         }
-
-        PutObjectRequest putRequest = PutObjectRequest.builder()
-                .bucket(bucket)
-                .key(file.getOriginalFilename())
-                .contentType(file.getContentType())
-                .build();
-
-        s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
-        quotaService.updateUsage(username, fileSize);
-
-        return ResponseEntity.ok(Map.of("message", "✅ File uploaded to Ceph S3!"));
     }
+
 
 
 
