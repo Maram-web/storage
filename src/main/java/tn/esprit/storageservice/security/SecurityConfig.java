@@ -24,6 +24,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/storage/s3/**").hasRole("USER")
                         .requestMatchers("/files/**").permitAll()
 
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class) // ✅ AJOUT ICI

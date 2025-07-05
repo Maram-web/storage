@@ -34,28 +34,37 @@ public class CephTestController {
 
     @PostMapping("/upload")
     public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        long fileSize = file.getSize();
+        Map<String, String> result = new HashMap<>();
 
         try {
+            System.out.println("🔥 File received: " + file.getOriginalFilename());
+
+            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            long fileSize = file.getSize();
+
             if (!quotaService.canUpload(username, fileSize)) {
-                return ResponseEntity.status(403).body(Map.of("message", quotaService.suggestUpgrade()));
+                result.put("message", quotaService.suggestUpgrade());
+                return ResponseEntity.status(403).body(result);
             }
+
+            System.out.println("⏫ Uploading to bucket: " + bucket);
 
             PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(file.getOriginalFilename())
                     .contentType(file.getContentType())
                     .build();
-            System.out.println("⏫ Uploading to bucket: " + bucket + ", file: " + file.getOriginalFilename());
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
-            quotaService.updateUsage(username, fileSize);
 
-            return ResponseEntity.ok(Map.of("message", "✅ File uploaded to Ceph S3!"));
+            quotaService.updateUsage(username, fileSize);
+            result.put("message", "✅ File uploaded to Ceph S3!");
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
-            e.printStackTrace(); // ou log.error(...)
-            return ResponseEntity.status(500).body(Map.of("error", "Upload failed: " + e.getMessage()));
+            e.printStackTrace(); // Tu dois voir l’erreur ici
+            result.put("error", e.getClass().getSimpleName());
+            result.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(result);
         }
     }
 
