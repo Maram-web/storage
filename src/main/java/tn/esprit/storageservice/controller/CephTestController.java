@@ -53,6 +53,7 @@ public class CephTestController {
     @PostMapping("/upload")
     public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
         Map<String, String> result = new HashMap<>();
+        System.out.println("🔥 Fichier reçu : " + file.getOriginalFilename());
 
         try {
             System.out.println("🔥 Fichier reçu : " + file.getOriginalFilename());
