@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Maram-web/storage-service.git'
+                git branch: 's3-done', url: 'https://github.com/Maram-web/storage-service.git'
             }
         }
 
