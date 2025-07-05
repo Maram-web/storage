@@ -55,7 +55,7 @@ public class CephTestController {
         Map<String, String> result = new HashMap<>();
 
         try {
-            System.out.println("🔥 File received: " + file.getOriginalFilename());
+            System.out.println("🔥 Fichier reçu : " + file.getOriginalFilename());
 
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
             long fileSize = file.getSize();
@@ -65,26 +65,31 @@ public class CephTestController {
                 return ResponseEntity.status(403).body(result);
             }
 
-            System.out.println("⏫ Uploading to bucket: " + bucket);
-
             PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(file.getOriginalFilename())
                     .contentType(file.getContentType())
                     .build();
 
+            System.out.println("📦 Tentative d'envoi dans le bucket: " + bucket);
             s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
-
             quotaService.updateUsage(username, fileSize);
-            result.put("message", "✅ File uploaded to Ceph S3!");
+
+            result.put("message", "✅ Fichier uploadé avec succès !");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            e.printStackTrace(); // Tu dois voir l’erreur ici
+            // log visible dans les pods
+            System.out.println("❌ ERREUR lors de l'upload !");
+            System.out.println("Exception: " + e.getClass().getSimpleName());
+            System.out.println("Message: " + e.getMessage());
+            e.printStackTrace();
+
             result.put("error", e.getClass().getSimpleName());
             result.put("message", e.getMessage());
             return ResponseEntity.status(500).body(result);
         }
     }
+
 
 
 
