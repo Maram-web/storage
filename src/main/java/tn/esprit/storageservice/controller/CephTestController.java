@@ -128,6 +128,12 @@ public class CephTestController {
         }
     }
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleException(Exception ex) {
+        System.out.println("💥 ERREUR GLOBALE CAPTÉE !");
+        ex.printStackTrace();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur serveur: " + ex.getMessage());
+    }
 
 
 }

@@ -2,30 +2,28 @@ pipeline {
     agent any
 
     environment {
+        TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
+        IMAGE_TAG = "v${TIMESTAMP}"
+        IMAGE_NAME = "marammanai/user-service:${IMAGE_TAG}"
         K8S_MASTER = "ceph1@192.168.13.11"
-        DEPLOY_YAML = "k8s-storage-deployment.yaml"
+        DEPLOY_YAML = "k8s-user-deployment.yaml"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 's3-done', url: 'https://github.com/Maram-web/storage.git'
+                git branch: 'main', url: 'https://github.com/Maram-web/user-service.git'
             }
         }
 
-        stage('Set Dynamic Image Tag') {
-            steps {
-                script {
-                    def tag = "v${new Date().format('yyyyMMdd-HHmmss')}"
-                    env.IMAGE_NAME = "marammanai/storage-service:${tag}"
-                    env.IMAGE_TAG = tag
-                }
-            }
-        }
-
-        stage('Docker Build & Push') {
+        stage('Build Docker Image') {
             steps {
                 sh "docker build -t $IMAGE_NAME ."
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
@@ -38,12 +36,12 @@ pipeline {
         stage('Inject Tag into YAML') {
             steps {
                 sh """
-                    sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-storage-template.yaml > $DEPLOY_YAML
+                    sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-user-template.yaml > $DEPLOY_YAML
                 """
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
                 sh '''
                     ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
@@ -56,10 +54,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ storage-service deployed with tag: ${env.IMAGE_TAG}"
+            echo "✅ user-service deployed with tag: ${IMAGE_TAG}"
         }
         failure {
-            echo "❌ storage-service deployment failed"
+            echo "❌ Deployment failed"
         }
     }
 }
