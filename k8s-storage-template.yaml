@@ -35,7 +35,7 @@ spec:
             - name: SPRING_DATASOURCE_PASSWORD
               value: root
             - name: CEPH_S3_ENDPOINT
-              value: http://rook-ceph-rgw-ceph-object-store.storage.svc.cluster.local  # ou 192.168.194.128 si testé en local
+              value: http://rook-ceph-rgw-my-store.rook-ceph.svc.cluster.local  # ou 192.168.194.128 si testé en local
             - name: CEPH_S3_ACCESSKEY
               value: spring-access-key
             - name: CEPH_S3_SECRETKEY
