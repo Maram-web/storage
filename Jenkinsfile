@@ -4,15 +4,15 @@ pipeline {
     environment {
         TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
         IMAGE_TAG = "v${TIMESTAMP}"
-        IMAGE_NAME = "marammanai/user-service:${IMAGE_TAG}"
+        IMAGE_NAME = "marammanai/storage-service:${IMAGE_TAG}"
         K8S_MASTER = "ceph1@192.168.13.11"
-        DEPLOY_YAML = "k8s-user-deployment.yaml"
+        DEPLOY_YAML = "k8s-storage-deployment.yaml"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Maram-web/user-service.git'
+                git branch: 'main', url: 'https://github.com/Maram-web/storage-service.git'
             }
         }
 
@@ -36,7 +36,7 @@ pipeline {
         stage('Inject Tag into YAML') {
             steps {
                 sh """
-                    sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-user-template.yaml > $DEPLOY_YAML
+                    sed 's|__IMAGE_TAG__|$IMAGE_TAG|g' k8s-storage-template.yaml > $DEPLOY_YAML
                 """
             }
         }
@@ -54,10 +54,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ user-service deployed with tag: ${IMAGE_TAG}"
+            echo "✅ storage-service deployed with tag: ${IMAGE_TAG}"
         }
         failure {
-            echo "❌ Deployment failed"
+            echo "❌ storage-service deployment failed"
         }
     }
 }
