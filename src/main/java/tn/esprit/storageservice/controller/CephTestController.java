@@ -10,9 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.model.*;
 import tn.esprit.storageservice.service.QuotaService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
@@ -32,6 +30,26 @@ public class CephTestController {
     @Value("${ceph.s3.bucket}")
     private String bucket;
 
+    @PostMapping("/bucket/create")
+    public ResponseEntity<String> createBucket() {
+        try {
+            CreateBucketRequest request = CreateBucketRequest.builder()
+                    .bucket(bucket)
+                    .build();
+
+            CreateBucketResponse response = s3Client.createBucket(request);
+            return ResponseEntity.ok("✅ Bucket created successfully: " + response.location());
+        } catch (S3Exception e) {
+            if (e.awsErrorDetails().errorCode().equals("BucketAlreadyOwnedByYou")) {
+                return ResponseEntity.ok("ℹ️ Bucket already exists.");
+            }
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("❌ Error creating bucket: " + e.awsErrorDetails().errorMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("❌ Unexpected error: " + e.getMessage());
+        }
+    }
     @PostMapping("/upload")
     public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
         Map<String, String> result = new HashMap<>();
