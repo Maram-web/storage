@@ -3,6 +3,7 @@ package tn.esprit.storageservice.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import tn.esprit.storageservice.service.QuotaService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -78,6 +80,21 @@ public class CephTestController {
 
         return String.format("💾 Quota restant : %.2f Mo = %.2f Ko", remainingMB, remainingKB);
     } // hattinah huni khatr aandu aalaka b uploads f ceph
+
+
+
+    @RestControllerAdvice
+    public class GlobalExceptionHandler {
+
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<Map<String, String>> handle(Exception e) {
+            e.printStackTrace(); // Tu verras l’erreur réelle dans les logs
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
 
 
 }
