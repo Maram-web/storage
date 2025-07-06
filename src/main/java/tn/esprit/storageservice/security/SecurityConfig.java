@@ -21,6 +21,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/storage/actuator/health").permitAll() // ✅ AJOUT ICI
                         .requestMatchers("/api/storage/s3/**").hasRole("USER")
                         .requestMatchers("/files/**").permitAll()
 
