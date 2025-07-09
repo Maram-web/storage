@@ -23,6 +23,8 @@ public class BucketController {
     private final QuotaService quotaService; // ou bucketService si tu as un service dédié
     private final S3Client s3Client;
 
+
+
     @GetMapping
     public ResponseEntity<List<String>> listBuckets(Authentication auth) {
         String username = auth.getName();

@@ -29,7 +29,7 @@ public class CephTestController {
     private final S3Client s3Client;
     private final QuotaService quotaService;
 
-    @Value("${ceph.s3.bucket}")
+//    @Value("${ceph.s3.bucket}")
     private String bucket;
 
     @PostMapping("/bucket/create")
@@ -66,7 +66,8 @@ public class CephTestController {
             String username = auth.getName();
             long fileSize = file.getSize();
 
-            if (!quotaService.canUpload(username, fileSize)) {
+            if (!quotaService.canUpload(username, bucket, fileSize)) {
+
                 return ResponseEntity.status(403).body("🚫 Quota dépassé.");
             }
 
@@ -77,7 +78,7 @@ public class CephTestController {
                     .build();
 
             s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
-            quotaService.updateUsage(username, fileSize);
+            quotaService.updateUsage(username, bucket, fileSize);
 
             return ResponseEntity.ok("✅ Fichier uploadé dans le bucket : " + bucket);
         } catch (Exception e) {
@@ -141,6 +142,15 @@ public class CephTestController {
         log.error("💥 ERREUR NON GÉRÉE dans CephTestController !", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Erreur serveur : " + ex.getMessage());
+    }
+
+
+    @GetMapping("/{bucket}/quota/remaining")
+    public ResponseEntity<String> getRemainingQuotaPerBucket(@PathVariable String bucket, Authentication auth) {
+        String username = auth.getName();
+        long remainingBytes = quotaService.getRemainingQuota(username, bucket);
+        double remainingMB = remainingBytes / (1024.0 * 1024.0);
+        return ResponseEntity.ok(String.format("💾 Quota restant dans %s : %.2f Mo", bucket, remainingMB));
     }
 
 
