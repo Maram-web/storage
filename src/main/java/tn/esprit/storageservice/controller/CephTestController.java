@@ -15,6 +15,8 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import tn.esprit.storageservice.service.QuotaService;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 
 import java.util.HashMap;
 import java.util.List;
@@ -23,30 +25,41 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-//@RequestMapping("/s3")
+@RequestMapping("/api/s3") // ✅ tu l'avais commenté, je le réactive
 public class CephTestController {
 
     private final S3Client s3Client;
     private final QuotaService quotaService;
 
+    @Value("${jwt.secret}")
+    private String SECRET;
+
     private String bucket;
 
     @PostMapping("/bucket/create")
-    public ResponseEntity<String> createBucket(@RequestParam String name, Authentication auth) {
-        try {            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+    public ResponseEntity<String> createBucket(@RequestParam String name, HttpServletRequest request) {
+        try {
+            String token = request.getHeader("Authorization").substring(7);
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(SECRET.getBytes())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            String username = claims.getSubject(); // ✅ email utilisé comme identifiant principal
 
-//            String username = auth.getName();
-            String bucketName = username + "-" + name; // 🔐 Préfixe utilisateur
-
-            CreateBucketRequest request = CreateBucketRequest.builder().bucket(bucketName).build();
-            s3Client.createBucket(request);
-            quotaService.initializeQuota(username, bucketName); // ✅
+            String bucketName = username + "-" + name;
+            CreateBucketRequest createRequest = CreateBucketRequest.builder().bucket(bucketName).build();
+            s3Client.createBucket(createRequest);
+            quotaService.initializeQuota(username, bucketName);
 
             return ResponseEntity.ok("✅ Bucket créé : " + bucketName);
         } catch (S3Exception e) {
             return ResponseEntity.status(500).body("❌ Erreur S3: " + e.awsErrorDetails().errorMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("❌ Erreur: " + e.getMessage());
         }
     }
+
 
     @GetMapping("/buckets")
     public ResponseEntity<List<String>> listUserBuckets(Authentication auth) {
@@ -67,7 +80,6 @@ public class CephTestController {
             long fileSize = file.getSize();
 
             if (!quotaService.canUpload(username, bucket, fileSize)) {
-
                 return ResponseEntity.status(403).body("🚫 Quota dépassé.");
             }
 
@@ -82,10 +94,10 @@ public class CephTestController {
 
             return ResponseEntity.ok("✅ Fichier uploadé dans le bucket : " + bucket);
         } catch (Exception e) {
-
             return ResponseEntity.status(500).body("❌ Erreur : " + e.getMessage());
         }
     }
+
     @GetMapping("/{bucket}/files")
     public ResponseEntity<List<String>> listFilesInBucket(@PathVariable String bucket) {
         List<String> keys = s3Client.listObjectsV2(ListObjectsV2Request.builder().bucket(bucket).build())
@@ -95,6 +107,7 @@ public class CephTestController {
                 .toList();
         return ResponseEntity.ok(keys);
     }
+
     @GetMapping("/{bucket}/files/{filename}")
     public ResponseEntity<byte[]> downloadFileFromBucket(@PathVariable String bucket,
                                                          @PathVariable String filename) {
@@ -114,7 +127,6 @@ public class CephTestController {
             return ResponseEntity.status(404).body(null);
         }
     }
-
 
     @GetMapping("/list")
     public List<String> listFiles() {
@@ -138,15 +150,6 @@ public class CephTestController {
         return message;
     }
 
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleException(Exception ex) {
-        log.error("💥 ERREUR NON GÉRÉE dans CephTestController !", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Erreur serveur : " + ex.getMessage());
-    }
-
-
     @GetMapping("/{bucket}/quota/remaining")
     public ResponseEntity<String> getRemainingQuotaPerBucket(@PathVariable String bucket, Authentication auth) {
         String username = auth.getName();
@@ -155,11 +158,10 @@ public class CephTestController {
         return ResponseEntity.ok(String.format("💾 Quota restant dans %s : %.2f Mo", bucket, remainingMB));
     }
 
-
-
-
-
-
-
-
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleException(Exception ex) {
+        log.error("💥 ERREUR NON GÉRÉE dans CephTestController !", ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Erreur serveur : " + ex.getMessage());
+    }
 }
