@@ -5,7 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,15 +33,15 @@ public class CephTestController {
     private String bucket;
 
     @PostMapping("/bucket/create")
-    public ResponseEntity<String> createBucket() {
+    public ResponseEntity<String> createBucket(@RequestParam String name) {
         try {
-            log.info("🪣 Tentative de création du bucket : {}", bucket);
-            CreateBucketRequest request = CreateBucketRequest.builder().bucket(bucket).build();
+            log.info("🪣 Tentative de création du bucket : {}", name);
+            CreateBucketRequest request = CreateBucketRequest.builder().bucket(name).build();
             CreateBucketResponse response = s3Client.createBucket(request);
             return ResponseEntity.ok("✅ Bucket créé avec succès: " + response.location());
         } catch (S3Exception e) {
             if ("BucketAlreadyOwnedByYou".equals(e.awsErrorDetails().errorCode())) {
-                log.warn("⚠️ Bucket déjà existant : {}", bucket);
+                log.warn("⚠️ Bucket déjà existant : {}", name);
                 return ResponseEntity.ok("ℹ️ Le bucket existe déjà.");
             }
             log.error("❌ Erreur S3: {}", e.awsErrorDetails().errorMessage(), e);
@@ -50,43 +52,61 @@ public class CephTestController {
         }
     }
 
-    @PostMapping("/upload")
-    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
-        Map<String, String> result = new HashMap<>();
-        String filename = file.getOriginalFilename();
-
+    @PostMapping("/{bucket}/upload")
+    public ResponseEntity<String> uploadToBucket(@PathVariable String bucket,
+                                                 @RequestParam("file") MultipartFile file,
+                                                 Authentication auth) {
         try {
-            log.info("📥 Upload du fichier reçu : {}", filename);
-
-            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+            String username = auth.getName();
             long fileSize = file.getSize();
-            log.info("👤 Utilisateur : {}, Taille du fichier : {} octets", username, fileSize);
 
             if (!quotaService.canUpload(username, fileSize)) {
-                result.put("message", quotaService.suggestUpgrade());
-                return ResponseEntity.status(403).body(result);
+                return ResponseEntity.status(403).body("🚫 Quota dépassé.");
             }
 
             PutObjectRequest putRequest = PutObjectRequest.builder()
                     .bucket(bucket)
-                    .key(filename)
+                    .key(file.getOriginalFilename())
                     .contentType(file.getContentType())
                     .build();
 
-            log.info("🚀 Upload vers le bucket Ceph: {}", bucket);
             s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
-
             quotaService.updateUsage(username, fileSize);
-            result.put("message", "✅ Fichier uploadé avec succès !");
-            return ResponseEntity.ok(result);
 
+            return ResponseEntity.ok("✅ Fichier uploadé dans le bucket : " + bucket);
         } catch (Exception e) {
-            log.error("❌ Erreur pendant l'upload du fichier: {}", filename, e);
-            result.put("error", e.getClass().getSimpleName());
-            result.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(result);
+            return ResponseEntity.status(500).body("❌ Erreur : " + e.getMessage());
         }
     }
+    @GetMapping("/{bucket}/files")
+    public ResponseEntity<List<String>> listFilesInBucket(@PathVariable String bucket) {
+        List<String> keys = s3Client.listObjectsV2(ListObjectsV2Request.builder().bucket(bucket).build())
+                .contents()
+                .stream()
+                .map(S3Object::key)
+                .toList();
+        return ResponseEntity.ok(keys);
+    }
+    @GetMapping("/{bucket}/files/{filename}")
+    public ResponseEntity<byte[]> downloadFileFromBucket(@PathVariable String bucket,
+                                                         @PathVariable String filename) {
+        try {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(filename)
+                    .build();
+
+            byte[] fileBytes = s3Client.getObjectAsBytes(getRequest).asByteArray();
+
+            return ResponseEntity.ok()
+                    .header("Content-Disposition", "attachment; filename=" + filename)
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(fileBytes);
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
 
     @GetMapping("/list")
     public List<String> listFiles() {
