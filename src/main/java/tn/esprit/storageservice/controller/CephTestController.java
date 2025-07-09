@@ -23,7 +23,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/s3")
+//@RequestMapping("/s3")
 public class CephTestController {
 
     private final S3Client s3Client;
