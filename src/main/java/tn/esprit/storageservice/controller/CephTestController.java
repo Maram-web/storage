@@ -29,19 +29,19 @@ public class CephTestController {
     private final S3Client s3Client;
     private final QuotaService quotaService;
 
-//    @Value("${ceph.s3.bucket}")
     private String bucket;
 
     @PostMapping("/bucket/create")
     public ResponseEntity<String> createBucket(@RequestParam String name, Authentication auth) {
-        try {
-            String username = auth.getName();
+        try {            String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
+//            String username = auth.getName();
             String bucketName = username + "-" + name; // 🔐 Préfixe utilisateur
 
             CreateBucketRequest request = CreateBucketRequest.builder().bucket(bucketName).build();
             s3Client.createBucket(request);
+            quotaService.initializeQuota(username, bucketName); // ✅
 
-            quotaService.initializeQuota(bucketName); // ➕ initialiser quota par bucket
             return ResponseEntity.ok("✅ Bucket créé : " + bucketName);
         } catch (S3Exception e) {
             return ResponseEntity.status(500).body("❌ Erreur S3: " + e.awsErrorDetails().errorMessage());
@@ -125,17 +125,18 @@ public class CephTestController {
                 .toList();
     }
 
-    @GetMapping("/quota/remaining")
-    public String getRemainingQuotaFormatted() {
+    @GetMapping("/{bucket}/quota/remaining/formatted")
+    public String getRemainingQuotaFormatted(@PathVariable String bucket) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        long remainingBytes = quotaService.getRemainingQuota(username);
+        long remainingBytes = quotaService.getRemainingQuota(username, bucket);
         double remainingKB = remainingBytes / 1024.0;
         double remainingMB = remainingBytes / (1024.0 * 1024.0);
 
-        String message = String.format("💾 Quota restant pour %s : %.2f Mo (%.2f Ko)", username, remainingMB, remainingKB);
+        String message = String.format("💾 Quota restant pour %s dans le bucket %s : %.2f Mo (%.2f Ko)", username, bucket, remainingMB, remainingKB);
         log.info(message);
         return message;
     }
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleException(Exception ex) {
