@@ -33,23 +33,29 @@ public class CephTestController {
     private String bucket;
 
     @PostMapping("/bucket/create")
-    public ResponseEntity<String> createBucket(@RequestParam String name) {
+    public ResponseEntity<String> createBucket(@RequestParam String name, Authentication auth) {
         try {
-            log.info("🪣 Tentative de création du bucket : {}", name);
-            CreateBucketRequest request = CreateBucketRequest.builder().bucket(name).build();
-            CreateBucketResponse response = s3Client.createBucket(request);
-            return ResponseEntity.ok("✅ Bucket créé avec succès: " + response.location());
+            String username = auth.getName();
+            String bucketName = username + "-" + name; // 🔐 Préfixe utilisateur
+
+            CreateBucketRequest request = CreateBucketRequest.builder().bucket(bucketName).build();
+            s3Client.createBucket(request);
+
+            quotaService.initializeQuota(bucketName); // ➕ initialiser quota par bucket
+            return ResponseEntity.ok("✅ Bucket créé : " + bucketName);
         } catch (S3Exception e) {
-            if ("BucketAlreadyOwnedByYou".equals(e.awsErrorDetails().errorCode())) {
-                log.warn("⚠️ Bucket déjà existant : {}", name);
-                return ResponseEntity.ok("ℹ️ Le bucket existe déjà.");
-            }
-            log.error("❌ Erreur S3: {}", e.awsErrorDetails().errorMessage(), e);
-            return ResponseEntity.status(500).body("Erreur S3: " + e.awsErrorDetails().errorMessage());
-        } catch (Exception e) {
-            log.error("❌ Erreur inattendue lors de la création du bucket", e);
-            return ResponseEntity.status(500).body("Erreur inconnue: " + e.getMessage());
+            return ResponseEntity.status(500).body("❌ Erreur S3: " + e.awsErrorDetails().errorMessage());
         }
+    }
+
+    @GetMapping("/buckets")
+    public ResponseEntity<List<String>> listUserBuckets(Authentication auth) {
+        String username = auth.getName();
+        List<String> buckets = s3Client.listBuckets().buckets().stream()
+                .map(Bucket::name)
+                .filter(name -> name.startsWith(username + "-"))
+                .toList();
+        return ResponseEntity.ok(buckets);
     }
 
     @PostMapping("/{bucket}/upload")
@@ -136,4 +142,12 @@ public class CephTestController {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Erreur serveur : " + ex.getMessage());
     }
+
+
+
+
+
+
+
+
 }
