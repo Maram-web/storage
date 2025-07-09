@@ -82,6 +82,7 @@ public class CephTestController {
 
             return ResponseEntity.ok("✅ Fichier uploadé dans le bucket : " + bucket);
         } catch (Exception e) {
+
             return ResponseEntity.status(500).body("❌ Erreur : " + e.getMessage());
         }
     }
