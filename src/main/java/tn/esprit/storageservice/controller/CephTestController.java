@@ -3,7 +3,6 @@ package tn.esprit.storageservice.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,38 +13,28 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import tn.esprit.storageservice.security.JwtService;
 import tn.esprit.storageservice.service.QuotaService;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/s3") // ✅ tu l'avais commenté, je le réactive
+@RequestMapping("/api/s3")
 public class CephTestController {
 
     private final S3Client s3Client;
     private final QuotaService quotaService;
-
-    @Value("${jwt.secret}")
-    private String SECRET;
+    private final JwtService jwtService;
 
     private String bucket;
 
     @PostMapping("/bucket/create")
     public ResponseEntity<String> createBucket(@RequestParam String name, HttpServletRequest request) {
         try {
-            String token = request.getHeader("Authorization").substring(7);
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(SECRET.getBytes())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-            String username = claims.getSubject(); // ✅ email utilisé comme identifiant principal
+            String token = jwtService.extractTokenFromRequest(request);
+            String username = jwtService.extractUsername(token); // ✅ récupéré depuis le JWT
 
             String bucketName = username + "-" + name;
             CreateBucketRequest createRequest = CreateBucketRequest.builder().bucket(bucketName).build();
@@ -59,7 +48,6 @@ public class CephTestController {
             return ResponseEntity.status(500).body("❌ Erreur: " + e.getMessage());
         }
     }
-
 
     @GetMapping("/buckets")
     public ResponseEntity<List<String>> listUserBuckets(Authentication auth) {
