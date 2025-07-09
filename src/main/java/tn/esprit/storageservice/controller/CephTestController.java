@@ -17,6 +17,7 @@ import tn.esprit.storageservice.security.JwtService;
 import tn.esprit.storageservice.service.QuotaService;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -31,21 +32,21 @@ public class CephTestController {
     private String bucket;
 
     @PostMapping("/bucket/create")
-    public ResponseEntity<String> createBucket(@RequestParam String name, HttpServletRequest request) {
+    public ResponseEntity<Map<String, String>> createBucket(@RequestParam String name, HttpServletRequest request) {
         try {
             String token = jwtService.extractTokenFromRequest(request);
-            String username = jwtService.extractUsername(token); // ✅ récupéré depuis le JWT
+            String username = jwtService.extractUsername(token);
 
             String bucketName = username + "-" + name;
             CreateBucketRequest createRequest = CreateBucketRequest.builder().bucket(bucketName).build();
             s3Client.createBucket(createRequest);
             quotaService.initializeQuota(username, bucketName);
 
-            return ResponseEntity.ok("✅ Bucket créé : " + bucketName);
+            return ResponseEntity.ok(Map.of("message", "✅ Bucket créé : " + bucketName));
         } catch (S3Exception e) {
-            return ResponseEntity.status(500).body("❌ Erreur S3: " + e.awsErrorDetails().errorMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "❌ Erreur S3: " + e.awsErrorDetails().errorMessage()));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("❌ Erreur: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "❌ Erreur: " + e.getMessage()));
         }
     }
 
@@ -60,15 +61,15 @@ public class CephTestController {
     }
 
     @PostMapping("/{bucket}/upload")
-    public ResponseEntity<String> uploadToBucket(@PathVariable String bucket,
-                                                 @RequestParam("file") MultipartFile file,
-                                                 Authentication auth) {
+    public ResponseEntity<Map<String, String>> uploadToBucket(@PathVariable String bucket,
+                                                              @RequestParam("file") MultipartFile file,
+                                                              Authentication auth) {
         try {
             String username = auth.getName();
             long fileSize = file.getSize();
 
             if (!quotaService.canUpload(username, bucket, fileSize)) {
-                return ResponseEntity.status(403).body("🚫 Quota dépassé.");
+                return ResponseEntity.status(403).body(Map.of("error", "🚫 Quota dépassé."));
             }
 
             PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -80,9 +81,9 @@ public class CephTestController {
             s3Client.putObject(putRequest, RequestBody.fromBytes(file.getBytes()));
             quotaService.updateUsage(username, bucket, fileSize);
 
-            return ResponseEntity.ok("✅ Fichier uploadé dans le bucket : " + bucket);
+            return ResponseEntity.ok(Map.of("message", "✅ Fichier uploadé dans le bucket : " + bucket));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("❌ Erreur : " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "❌ Erreur : " + e.getMessage()));
         }
     }
 
@@ -127,29 +128,30 @@ public class CephTestController {
     }
 
     @GetMapping("/{bucket}/quota/remaining/formatted")
-    public String getRemainingQuotaFormatted(@PathVariable String bucket) {
+    public ResponseEntity<Map<String, String>> getRemainingQuotaFormatted(@PathVariable String bucket) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         long remainingBytes = quotaService.getRemainingQuota(username, bucket);
         double remainingKB = remainingBytes / 1024.0;
         double remainingMB = remainingBytes / (1024.0 * 1024.0);
 
-        String message = String.format("💾 Quota restant pour %s dans le bucket %s : %.2f Mo (%.2f Ko)", username, bucket, remainingMB, remainingKB);
+        String message = String.format("💾 Quota restant pour %s dans le bucket %s : %.2f Mo (%.2f Ko)",
+                username, bucket, remainingMB, remainingKB);
         log.info(message);
-        return message;
+        return ResponseEntity.ok(Map.of("quota", message));
     }
 
     @GetMapping("/{bucket}/quota/remaining")
-    public ResponseEntity<String> getRemainingQuotaPerBucket(@PathVariable String bucket, Authentication auth) {
+    public ResponseEntity<Map<String, String>> getRemainingQuotaPerBucket(@PathVariable String bucket, Authentication auth) {
         String username = auth.getName();
         long remainingBytes = quotaService.getRemainingQuota(username, bucket);
         double remainingMB = remainingBytes / (1024.0 * 1024.0);
-        return ResponseEntity.ok(String.format("💾 Quota restant dans %s : %.2f Mo", bucket, remainingMB));
+        return ResponseEntity.ok(Map.of("quota", String.format("%.2f Mo", remainingMB)));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleException(Exception ex) {
+    public ResponseEntity<Map<String, String>> handleException(Exception ex) {
         log.error("💥 ERREUR NON GÉRÉE dans CephTestController !", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Erreur serveur : " + ex.getMessage());
+                .body(Map.of("error", "Erreur serveur : " + ex.getMessage()));
     }
 }
