@@ -165,4 +165,10 @@ public class CephTestController {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Erreur serveur : " + ex.getMessage()));
     }
+    @DeleteMapping("/{bucket}/files/{filename}")
+    public ResponseEntity<String> deleteFile(@PathVariable String bucket, @PathVariable String filename) {
+        s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(filename).build());
+        return ResponseEntity.ok("Fichier supprimé : " + filename);
+    }
+
 }
