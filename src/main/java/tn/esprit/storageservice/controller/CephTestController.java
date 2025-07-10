@@ -108,10 +108,21 @@ public class CephTestController {
 
             byte[] fileBytes = s3Client.getObjectAsBytes(getRequest).asByteArray();
 
+            // 🔍 Déduire le Content-Type de l'extension du fichier
+            String contentType;
+            if (filename.endsWith(".png")) {
+                contentType = "image/png";
+            } else if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+                contentType = "image/jpeg";
+            } else {
+                contentType = "application/octet-stream"; // fallback
+            }
+
             return ResponseEntity.ok()
-                    .header("Content-Disposition", "attachment; filename=" + filename)
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header("Content-Disposition", "inline; filename=" + filename)
+                    .contentType(MediaType.parseMediaType(contentType))
                     .body(fileBytes);
+
         } catch (Exception e) {
             return ResponseEntity.status(404).body(null);
         }
